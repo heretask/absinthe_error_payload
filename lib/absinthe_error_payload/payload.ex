@@ -327,12 +327,19 @@ defmodule AbsintheErrorPayload.Payload do
         true -> camelized_name(message.field)
       end
 
-    %{message | field: field, key: field}
+    %{message | field: field, key: field, code: camelized_name(message.code)}
   end
 
   defp camelized_name(nil), do: nil
 
-  defp camelized_name(field) do
+  defp camelized_name(field) when is_atom(field) do
+    field
+    |> to_string()
+    |> camelized_name()
+    |> String.to_atom()
+  end
+
+  defp camelized_name(field) when is_binary(field) do
     field
     |> to_string()
     |> Absinthe.Utils.camelize(lower: true)
