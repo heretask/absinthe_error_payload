@@ -43,6 +43,8 @@ defmodule AbsintheErrorPayload.ChangesetParserTest do
       field(:topics, {:array, :string})
       field(:virtual, :string, virtual: true)
       field(:published_at, :naive_datetime)
+      field(:language, Ecto.Enum, values: [:en, :fr])
+      field(:metadata, {:array, :map})
 
       belongs_to(:author, Author)
       has_many(:tags, Tag)
@@ -180,6 +182,23 @@ defmodule AbsintheErrorPayload.ChangesetParserTest do
       assert [first, second] = result
       assert %ValidationMessage{code: :required, field: "tags.0.name", key: :name} = first
       assert %ValidationMessage{code: :required, field: "tags.1.name", key: :name} = second
+    end
+
+    test "nested nil has many fields with errors" do
+      changeset =
+        %{"tags" => nil}
+        |> changeset()
+        |> cast_assoc(:tags,
+          with: fn tag, params ->
+            tag
+            |> cast(params, ~w(name)a)
+            |> validate_required(:name)
+          end
+        )
+
+      result = ChangesetParser.extract_messages(changeset)
+      assert [first] = result
+      assert %ValidationMessage{code: :association, field: :tags, key: :tags, message: "is invalid", options: [%{key: :type, value: "array-map"}]} = first
     end
   end
 
@@ -495,6 +514,22 @@ defmodule AbsintheErrorPayload.ChangesetParserTest do
       assert message.key == :body
       assert message.field == :body
       assert message.options == [%{key: :type, value: "string"}]
+      assert message.message != ""
+      assert message.template != ""
+    end
+
+    test "cast enum" do
+      params = %{"language" => :de}
+      struct = %Post{}
+
+      changeset = cast(struct, params, ~w(language)a)
+
+      assert [%ValidationMessage{} = message] = ChangesetParser.extract_messages(changeset)
+
+      assert message.code == :cast
+      assert message.key == :language
+      assert message.field == :language
+      assert message.options == [%{key: :type, value: "en,fr"}]
       assert message.message != ""
       assert message.template != ""
     end
